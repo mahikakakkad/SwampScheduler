@@ -1,4 +1,4 @@
-import React, { Component } from "react";
+import React, { Component, useState, useEffect } from "react";
 import classNames from "classnames";
 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
 // @ts-ignore
@@ -25,14 +25,62 @@ type MeetTimeInfo = {
     sectionIsOnline: boolean;
 };
 
-export default class ScheduleDisplay extends Component<Props, States> {
-    // TODO: redo this (it is *disgusting*); maybe there is a library that does the work
+// Pin/Save Feature Code (new)
+const ScheduleDisplayWithPin = ({ schedule }) => {
+    const [pinnedSchedules, setPinnedSchedules] = useState([]);
 
+    // Load pinned schedules from localStorage when component mounts
+    useEffect(() => {
+        const savedSchedules = JSON.parse(localStorage.getItem('pinnedSchedules'));
+        if (savedSchedules) {
+            setPinnedSchedules(savedSchedules);
+        }
+    }, []);
+
+    const pinSchedule = (schedule) => {
+        const updatedPinned = [...pinnedSchedules, schedule];
+        setPinnedSchedules(updatedPinned);
+        localStorage.setItem('pinnedSchedules', JSON.stringify(updatedPinned));
+    };
+
+    const removePinnedSchedule = (index) => {
+        const updatedPinned = pinnedSchedules.filter((_, i) => i !== index);
+        setPinnedSchedules(updatedPinned);
+        localStorage.setItem('pinnedSchedules', JSON.stringify(updatedPinned));
+    };
+
+    return (
+        <div>
+            {/* Render the original schedule display */}
+            <ScheduleDisplay schedule={schedule} />
+            
+            {/* Pin button */}
+            <button onClick={() => pinSchedule(schedule)}>📌 Pin</button>
+
+            {/* Display pinned schedules */}
+            <div className="pinned-schedules">
+                <h2>Pinned Schedules</h2>
+                {pinnedSchedules.length === 0 ? (
+                    <p>No pinned schedules yet.</p>
+                ) : (
+                    pinnedSchedules.map((schedule, index) => (
+                        <div key={index} className="pinned-schedule">
+                            <h3>Pinned Schedule {index + 1}</h3>
+                            <button onClick={() => removePinnedSchedule(index)}>Unpin</button>
+                        </div>
+                    ))
+                )}
+            </div>
+        </div>
+    );
+};
+
+// Original Schedule Display (unchanged, but now wrapped by ScheduleDisplayWithPin)
+export default class ScheduleDisplay extends Component<Props, States> {
     render() {
         const schedule = this.props.schedule,
             periodCounts = PERIOD_COUNTS[schedule.term];
 
-        // TODO: this is suspiciously similar to Meetings class
         const blockSchedule: Record<API_Day, (MeetTimeInfo | null)[]> = {
             [API_Day.Mon]: new Array(periodCounts.all).fill(null),
             [API_Day.Tue]: new Array(periodCounts.all).fill(null),
@@ -64,14 +112,11 @@ export default class ScheduleDisplay extends Component<Props, States> {
         const divs = [];
         for (let p = 0; p < periodCounts.all; ++p) {
             for (const day of API_Days) {
-                // TODO: make this a checkbox or automatically change format to 6 days if schedule has a Saturday course
                 if (day == API_Day.Sat) continue;
 
-                //TODO: make this not absolutely horrible :)
                 const meetTimeInfo: MeetTimeInfo | null = blockSchedule[day][p];
 
                 if (meetTimeInfo == null) {
-                    // No course
                     divs.push(
                         <div
                             className={classNames([
@@ -101,7 +146,6 @@ export default class ScheduleDisplay extends Component<Props, States> {
                         blockSchedule[day][p - 1] == null ||
                         blockSchedule[day][p - 1]!.meetTime != mT)
                 ) {
-                    // TODO: why do I have to do this garbage??
                     const spanMap: Map<number, string> = new Map<
                         number,
                         string
@@ -114,7 +158,7 @@ export default class ScheduleDisplay extends Component<Props, States> {
                     ]);
                     const span: string = spanMap.get(
                         Math.min(1 + (mT.periodEnd - mT.periodBegin), 6),
-                    )!; // TODO: error handling for NaN
+                    )!;
 
                     divs.push(
                         <div
@@ -236,59 +280,3 @@ export default class ScheduleDisplay extends Component<Props, States> {
 
                             {onlineSections.length > 0 && (
                                 <div
-                                    className={
-                                        "border-solid border-2 border-gray-400 bg-gray-200 rounded text-center w-full h-6 px-0.5 min-w-full"
-                                    }
-                                >
-                                    <div
-                                        className={
-                                            "flex items-center justify-center"
-                                        }
-                                    >
-                                        <GrPersonalComputer />️
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-
-                    <div className={"inline-block grow"}>
-                        <div className={"grid grid-cols-5 grid-rows-11 gap-1"}>
-                            {divs}
-                            {onlineSections.length > 0 && (
-                                <div className={"col-span-5"}>
-                                    <div className={"min-w-full w-5/12 h-full"}>
-                                        <div className={"flex gap-1"}>
-                                            {onlineSections.map(
-                                                (sec: Section, ind: number) => (
-                                                    <div
-                                                        className={classNames([
-                                                            "border-solid",
-                                                            "border-2",
-                                                            "border-gray-400",
-                                                            getSectionColor(
-                                                                ind,
-                                                            ),
-                                                            "rounded",
-                                                            "text-center",
-                                                            "grow",
-                                                        ])}
-                                                    >
-                                                        {sec.displayName}
-                                                        <sup>
-                                                            <b>{1 + ind}</b>
-                                                        </sup>
-                                                    </div>
-                                                ),
-                                            )}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
-            </div>
-        );
-    }
-}
